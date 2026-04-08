@@ -177,4 +177,16 @@ stopBtn.addEventListener("click", stopPlaybackAndScore);
 lowBtn.addEventListener("click", () => registerClap("low"));
 highBtn.addEventListener("click", () => registerClap("high"));
 
+window.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+
+  if (key === "k") {
+    event.preventDefault();
+    registerClap("low");
+  } else if (key === "l") {
+    event.preventDefault();
+    registerClap("high");
+  }
+});
+
 renderTime();

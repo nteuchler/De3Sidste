@@ -7,6 +7,22 @@ AUDIO_FILENAME = "I Want To Hold Your Hand.mp3"
 PLAY_DURATION_SECONDS = 40
 
 # Backend timing configuration.
+CLAP_KEY_BINDINGS = {
+    "k": "low",
+    "l": "high",
+}
+CLAP_KEY_BINDINGS = {str(k).lower(): v for k, v in CLAP_KEY_BINDINGS.items()}
+
+
+def clap_type_from_key(key: str | None) -> str | None:
+    if not key:
+        return None
+    normalized = str(key).strip().lower()
+    if normalized.startswith("key") and len(normalized) == 4:
+        normalized = normalized[-1]
+    return CLAP_KEY_BINDINGS.get(normalized)
+
+
 BPM = 131.0
 BEAT_OFFSET_SECONDS = 0.0
 MATCH_TOLERANCE_BEATS = 0.75
@@ -87,6 +103,7 @@ def index():
         play_duration=PLAY_DURATION_SECONDS,
         bpm=BPM,
         expected_count=len(REFERENCE_CLAPS),
+        key_bindings=CLAP_KEY_BINDINGS,
     )
 
 
@@ -106,6 +123,7 @@ def config():
             "beatOffsetSeconds": BEAT_OFFSET_SECONDS,
             "matchToleranceBeats": MATCH_TOLERANCE_BEATS,
             "expectedCount": len(REFERENCE_CLAPS),
+            "keyBindings": CLAP_KEY_BINDINGS,
         }
     )
 
@@ -118,6 +136,9 @@ def score():
     user_claps = []
     for clap in input_claps:
         clap_type = clap.get("type")
+        if clap_type not in {"low", "high"}:
+            clap_type = clap_type_from_key(clap.get("key")) or clap_type_from_key(clap.get("code"))
+
         clap_time = clap.get("time")
         if clap_type not in {"low", "high"}:
             continue
