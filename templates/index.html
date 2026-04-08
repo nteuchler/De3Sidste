@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clap Trainer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  </head>
+  <body>
+    <main class="app">
+      <h1>Lær at klappe dit dræn</h1>
+      <p class="subtitle">Pattern target: 2 low claps, then 1 high clap.</p>
+
+      {% if not audio_exists %}
+      <div class="warning">
+        Audio file not found: <strong>{{ audio_filename }}</strong> in app folder.
+      </div>
+      {% endif %}
+
+      <section class="panel">
+        <div class="row controls">
+          <button id="startBtn">Start</button>
+          <button id="stopBtn" disabled>Stop</button>
+          <span id="timeDisplay">0.00s / {{ play_duration }}.00s</span>
+        </div>
+
+        <div class="row clap-buttons">
+          <button id="lowBtn" class="low" disabled>Clap Low</button>
+          <button id="highBtn" class="high" disabled>Clap High</button>
+        </div>
+        <div id="liveFeedback" class="live-feedback">Waiting to start...</div>
+      </section>
+
+      <section class="panel">
+        <h2>Score</h2>
+        <div id="scoreSummary">Press Start to begin.</div>
+        <pre id="scoreDetails"></pre>
+      </section>
+    </main>
+
+    <script>
+      window.APP_CONFIG = {
+        playDuration: {{ play_duration|tojson }},
+        bpm: {{ bpm|tojson }},
+        expectedCount: {{ expected_count|tojson }}
+      };
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,173 @@
+:root {
+  --bg-1: #f0f4f8;
+  --bg-2: #d9e2ec;
+  --card: #ffffff;
+  --text: #102a43;
+  --muted: #486581;
+  --accent-low: #2f855a;
+  --accent-high: #c05621;
+  --primary: #1f7a8c;
+  --warning: #9b2c2c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+  background: radial-gradient(circle at 20% 20%, var(--bg-1), var(--bg-2));
+}
+
+.app {
+  max-width: 920px;
+  margin: 24px auto;
+  padding: 0 16px 24px;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+.warning {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  color: var(--warning);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid #bcccdc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 14px rgba(16, 42, 67, 0.08);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.controls button,
+.clap-buttons button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform 90ms ease, filter 120ms ease;
+}
+
+#startBtn {
+  background: var(--primary);
+}
+
+#stopBtn {
+  background: #334e68;
+}
+
+#lowBtn {
+  background: var(--accent-low);
+}
+
+#highBtn {
+  background: var(--accent-high);
+}
+
+.pulse {
+  transform: scale(1.07);
+  filter: brightness(1.18);
+}
+
+.live-feedback {
+  margin-top: 10px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+  background: #e6eff6;
+  color: #243b53;
+  border: 1px solid #bcccdc;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.live-feedback.low {
+  background: #e6fffa;
+  border-color: #81e6d9;
+  color: #22543d;
+}
+
+.live-feedback.high {
+  background: #fffaf0;
+  border-color: #fbd38d;
+  color: #7b341e;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#timeDisplay {
+  font-weight: 600;
+}
+
+.settings h2,
+.panel h2 {
+  margin: 0 0 12px;
+}
+
+.settings-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+input[type="number"] {
+  width: 130px;
+  border: 1px solid #9fb3c8;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 14px;
+}
+
+#scoreSummary {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#scoreDetails {
+  margin: 10px 0 0;
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  .app {
+    margin-top: 16px;
+  }
+
+  input[type="number"] {
+    width: 100%;
+  }
+}
