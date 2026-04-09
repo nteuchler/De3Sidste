@@ -7,6 +7,28 @@ const scoreSummary = document.getElementById("scoreSummary");
 const scoreDetails = document.getElementById("scoreDetails");
 const liveFeedback = document.getElementById("liveFeedback");
 
+const rankClassByName = {
+  "Dræn": "tier-draen",
+  sidstegangs: "tier-sidstegangs",
+  medarbejder: "tier-medarbejder",
+  "god nok til bandet": "tier-bandet",
+  "Niels (Guden)": "tier-niels",
+};
+
+function renderScoreCard(result) {
+  const tierClass = rankClassByName[result.rank] || "tier-medarbejder";
+  const displayScore = Number(result.accuracyScore || 0);
+  const headline = displayScore >= 90 ? "SEJR!" : "RUN COMPLETE";
+
+  scoreSummary.className = `score-summary-card is-win ${tierClass}`;
+  scoreSummary.innerHTML = `
+    <div class="win-tag">${headline}</div>
+    <div class="win-score">${displayScore.toFixed(1)}<span>/100</span></div>
+    <div class="win-rank">${result.rank}</div>
+    <div class="win-stats">Matched ${result.matchedCount}/${result.expectedCount} | Extra ${result.extraCount}</div>
+  `;
+}
+
 const config = window.APP_CONFIG;
 const audio = new Audio("/audio");
 audio.preload = "auto";
@@ -95,6 +117,7 @@ function scheduleFadeOut() {
 
 function startRun() {
   clapEvents = [];
+  scoreSummary.className = "score-summary-card";
   scoreSummary.textContent = "Running... Clap with the buttons!";
   scoreDetails.textContent = "";
   liveFeedback.classList.remove("low", "high");
@@ -143,20 +166,31 @@ async function scoreRun() {
     }
 
     const result = await response.json();
-    scoreSummary.textContent =
-      `Final Score: ${result.finalScore}/100 | Matched: ${result.matchedCount}/${result.expectedCount} | ` +
-      `Extra: ${result.extraCount} | Avg beat error: ${result.averageBeatError}`;
+    renderScoreCard(result);
+
+    const perPositionLines = (result.perPosition || []).map((p) => {
+      const avgAbs = p.averageAbsErrorMs == null ? "-" : `${p.averageAbsErrorMs}ms`;
+      const avgSigned = p.averageSignedErrorMs == null ? "-" : `${p.averageSignedErrorMs}ms`;
+      return `${p.positionLabel} clap: ${p.hitCount}/${p.expectedCount} (${p.hitRate}%) | avg err ${avgAbs} | bias ${avgSigned} | ${p.trend}`;
+    });
 
     const lines = [
       `BPM: ${result.bpm}`,
+      `Rank: ${result.rank}`,
       `Accuracy: ${result.accuracyScore}%`,
       `Timing: ${result.timingScore}%`,
+      `Ignored window: ${(result.ignoredWindowSeconds || []).map((w) => `${w[0]}s-${w[1]}s`).join(", ") || "none"}`,
+      "",
+      "Feedback per clap in each 3-clap phrase:",
+      ...perPositionLines,
       "",
       "Sample of expected vs matched:",
       ...result.matches.slice(0, 18).map((m, idx) => {
-        const expected = `${idx + 1}. ${m.expected.type.toUpperCase()} @ ${m.expected.time.toFixed(2)}s (q ${m.expected.q_time.toFixed(2)}s)`;
+        const expected = `${idx + 1}. [${m.expected.positionLabel}] ${m.expected.type.toUpperCase()} @ ${m.expected.time.toFixed(2)}s`;
         if (!m.matched) return `${expected} -> MISS`;
-        return `${expected} -> HIT @ ${m.actual.time.toFixed(2)}s (q ${m.actual.q_time.toFixed(2)}s, beat err ${m.beat_error.toFixed(3)})`;
+        const signedMs = m.signed_error_seconds * 1000;
+        const trend = signedMs < -20 ? "EARLY" : signedMs > 20 ? "LATE" : "ON";
+        return `${expected} -> HIT @ ${m.actual.time.toFixed(2)}s (${trend}, ${signedMs.toFixed(1)}ms, beat err ${m.beat_error.toFixed(3)})`;
       }),
       "",
       "All claps:",
@@ -166,6 +200,7 @@ async function scoreRun() {
     scoreDetails.textContent = lines.join("\n");
     liveFeedback.textContent = "Run complete.";
   } catch (error) {
+    scoreSummary.className = "score-summary-card";
     scoreSummary.textContent = "Could not score this run.";
     scoreDetails.textContent = String(error);
     liveFeedback.textContent = "Scoring failed.";

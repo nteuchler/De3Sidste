@@ -119,6 +119,22 @@ h1 {
   color: #7b341e;
 }
 
+.key-hint {
+  margin: 10px 0 2px;
+  color: #334e68;
+  font-size: 14px;
+}
+
+.key-hint kbd {
+  font-family: Consolas, "Courier New", monospace;
+  background: #f0f4f8;
+  border: 1px solid #9fb3c8;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 13px;
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -154,6 +170,114 @@ input[type="number"] {
   font-weight: 600;
 }
 
+.score-summary-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid #bcccdc;
+  background: linear-gradient(130deg, #f8fbff 0%, #ecf4fb 100%);
+  color: #102a43;
+  padding: 12px;
+}
+
+.score-summary-card.is-win {
+  border: 1px solid #b7791f;
+  background: linear-gradient(135deg, #6b4f00 0%, #d69e2e 55%, #fff0a8 100%);
+  color: #fffef8;
+  box-shadow: 0 12px 30px rgba(107, 79, 0, 0.35);
+  animation: scorePop 420ms ease-out;
+}
+
+.score-summary-card.is-win::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -35%;
+  width: 28%;
+  height: 180%;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0));
+  transform: rotate(24deg);
+  animation: shineSweep 2.2s ease-out;
+}
+
+.win-tag {
+  letter-spacing: 0.09em;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.92;
+}
+
+.win-score {
+  margin-top: 4px;
+  font-size: clamp(36px, 8vw, 56px);
+  line-height: 1;
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgba(69, 52, 0, 0.3);
+}
+
+.win-score span {
+  font-size: 18px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.win-rank {
+  margin-top: 6px;
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(16, 42, 67, 0.25);
+}
+
+.win-stats {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+
+.score-summary-card.tier-draen {
+  background: linear-gradient(130deg, #5a2e00 0%, #9c4221 50%, #f6ad55 100%);
+}
+
+.score-summary-card.tier-sidstegangs {
+  background: linear-gradient(130deg, #374151 0%, #4b5563 50%, #9ca3af 100%);
+}
+
+.score-summary-card.tier-medarbejder {
+  background: linear-gradient(130deg, #1f4d6b 0%, #2c7a9a 52%, #7ecbe6 100%);
+}
+
+.score-summary-card.tier-bandet {
+  background: linear-gradient(130deg, #064e3b 0%, #059669 48%, #6ee7b7 100%);
+}
+
+.score-summary-card.tier-niels {
+  background: linear-gradient(130deg, #4a154b 0%, #9d174d 45%, #f59e0b 100%);
+}
+
+@keyframes scorePop {
+  0% {
+    transform: scale(0.97);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shineSweep {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 130%;
+  }
+}
+
 #scoreDetails {
   margin: 10px 0 0;
   background: #f8fbff;
@@ -169,5 +293,9 @@ input[type="number"] {
 
   input[type="number"] {
     width: 100%;
+  }
+
+  .win-stats {
+    line-height: 1.4;
   }
 }
