@@ -196,7 +196,15 @@ def sort_and_trim_leaderboard(entries: list[dict]) -> list[dict]:
 
 def save_leaderboard_entries(entries: list[dict]) -> None:
     LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LEADERBOARD_FILE_PATH.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Write atomically to reduce risk of partial/corrupt JSON on abrupt restarts.
+    payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    temp_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
+    temp_path.replace(LEADERBOARD_FILE_PATH)
 
 
 @app.get("/")
