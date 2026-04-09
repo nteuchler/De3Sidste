@@ -6,6 +6,11 @@ const timeDisplay = document.getElementById("timeDisplay");
 const scoreSummary = document.getElementById("scoreSummary");
 const scoreDetails = document.getElementById("scoreDetails");
 const liveFeedback = document.getElementById("liveFeedback");
+const leaderboardEntry = document.getElementById("leaderboardEntry");
+const playerNameInput = document.getElementById("playerNameInput");
+const saveScoreBtn = document.getElementById("saveScoreBtn");
+const leaderboardMessage = document.getElementById("leaderboardMessage");
+const leaderboardList = document.getElementById("leaderboardList");
 
 const rankClassByName = {
   "Dræn": "tier-draen",
@@ -33,12 +38,139 @@ const config = window.APP_CONFIG;
 const audio = new Audio("/audio");
 audio.preload = "auto";
 
+const LAST_PLAYER_NAME_KEY = "draenLastPlayerName";
+
 let runStartPerf = null;
 let uiTimer = null;
 let fadeTimer = null;
 let clapEvents = [];
 let isRunning = false;
 let feedbackTimer = null;
+let lastScoreResult = null;
+let leaderboardEntries = [];
+let hasSavedCurrentRun = false;
+
+function formatPlayedAt(playedAt) {
+  const timestamp = Number(playedAt || 0);
+  if (!timestamp) return "Ukendt tidspunkt";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Ukendt tidspunkt";
+  return date.toLocaleString("da-DK", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+  const tag = (target.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || target.isContentEditable;
+}
+
+function renderLeaderboard(entries = leaderboardEntries) {
+  leaderboardList.innerHTML = "";
+
+  if (entries.length === 0) {
+    leaderboardList.innerHTML = '<li class="leaderboard-empty">Ingen scores endnu. Spil en runde og gem den!</li>';
+    return;
+  }
+
+  entries.forEach((entry, index) => {
+    const li = document.createElement("li");
+    li.className = "leaderboard-item";
+    li.innerHTML = `
+      <div class="leaderboard-main">
+        <span>#${index + 1} ${entry.name}</span>
+        <span>${entry.finalScore} pts</span>
+      </div>
+      <div class="leaderboard-meta">
+        ${entry.rank} | Noejagtighed ${entry.accuracyScore.toFixed(1)}% | Ramt ${entry.matchedCount}/${entry.expectedCount} | ${formatPlayedAt(entry.playedAt)}
+      </div>
+    `;
+    leaderboardList.appendChild(li);
+  });
+}
+
+async function refreshLeaderboard() {
+  try {
+    const response = await fetch("/leaderboard");
+    if (!response.ok) {
+      throw new Error(`Leaderboard fejlede med status ${response.status}`);
+    }
+    const data = await response.json();
+    leaderboardEntries = Array.isArray(data.entries) ? data.entries : [];
+    renderLeaderboard(leaderboardEntries);
+  } catch {
+    leaderboardList.innerHTML = '<li class="leaderboard-empty">Kunne ikke hente leaderboard.</li>';
+  }
+}
+
+function showLeaderboardEntry(show) {
+  leaderboardEntry.hidden = !show;
+  if (!show) {
+    leaderboardMessage.textContent = "";
+  }
+}
+
+async function submitScoreToLeaderboard() {
+  if (!lastScoreResult) {
+    leaderboardMessage.textContent = "Spil en runde foerst.";
+    return;
+  }
+
+  if (hasSavedCurrentRun) {
+    leaderboardMessage.textContent = "Du har allerede gemt dit navn for denne runde.";
+    return;
+  }
+
+  const rawName = playerNameInput.value.trim();
+  if (!rawName) {
+    leaderboardMessage.textContent = "Skriv dit navn foer du gemmer.";
+    playerNameInput.focus();
+    return;
+  }
+
+  const safeName = rawName.slice(0, 24);
+  localStorage.setItem(LAST_PLAYER_NAME_KEY, safeName);
+
+  saveScoreBtn.disabled = true;
+  leaderboardMessage.textContent = "Gemmer score...";
+
+  try {
+    const response = await fetch("/leaderboard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: safeName,
+        finalScore: Number(lastScoreResult.finalScore || 0),
+        accuracyScore: Number(lastScoreResult.accuracyScore || 0),
+        rank: String(lastScoreResult.rank || "Ukendt"),
+        matchedCount: Number(lastScoreResult.matchedCount || 0),
+        expectedCount: Number(lastScoreResult.expectedCount || 0),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Leaderboard gem fejlede med status ${response.status}`);
+    }
+
+    const data = await response.json();
+    leaderboardEntries = Array.isArray(data.entries) ? data.entries : [];
+    renderLeaderboard(leaderboardEntries);
+    hasSavedCurrentRun = true;
+    saveScoreBtn.disabled = true;
+    leaderboardMessage.textContent = `${safeName}, din score er gemt paa leaderboardet.`;
+  } catch {
+    leaderboardMessage.textContent = "Kunne ikke gemme score til serveren.";
+  } finally {
+    if (!hasSavedCurrentRun) {
+      saveScoreBtn.disabled = false;
+    }
+  }
+}
 
 function currentRunTime() {
   if (!runStartPerf) return 0;
@@ -117,11 +249,15 @@ function scheduleFadeOut() {
 
 function startRun() {
   clapEvents = [];
+  lastScoreResult = null;
+  hasSavedCurrentRun = false;
+  saveScoreBtn.disabled = false;
   scoreSummary.className = "score-summary-card";
   scoreSummary.textContent = "Spiller... Klap med knapperne!";
   scoreDetails.textContent = "";
   liveFeedback.classList.remove("low", "high");
   liveFeedback.textContent = "Lytter...";
+  showLeaderboardEntry(false);
 
   runStartPerf = performance.now();
   audio.currentTime = 0;
@@ -166,7 +302,17 @@ async function scoreRun() {
     }
 
     const result = await response.json();
+    lastScoreResult = result;
+    hasSavedCurrentRun = false;
+    saveScoreBtn.disabled = false;
     renderScoreCard(result);
+    showLeaderboardEntry(true);
+
+    if (!playerNameInput.value.trim()) {
+      const lastName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || "";
+      playerNameInput.value = lastName;
+    }
+    playerNameInput.focus();
 
     const perPositionLines = (result.perPosition || []).map((p) => {
       const avgAbs = p.averageAbsErrorMs == null ? "-" : `${p.averageAbsErrorMs}ms`;
@@ -204,6 +350,7 @@ async function scoreRun() {
     scoreSummary.textContent = "Kunne ikke beregne denne runde.";
     scoreDetails.textContent = String(error);
     liveFeedback.textContent = "Score fejlede.";
+    showLeaderboardEntry(false);
   }
 }
 
@@ -211,8 +358,19 @@ startBtn.addEventListener("click", startRun);
 stopBtn.addEventListener("click", stopPlaybackAndScore);
 lowBtn.addEventListener("click", () => registerClap("low"));
 highBtn.addEventListener("click", () => registerClap("high"));
+saveScoreBtn.addEventListener("click", submitScoreToLeaderboard);
+playerNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    submitScoreToLeaderboard();
+  }
+});
 
 window.addEventListener("keydown", (event) => {
+  if (isTypingTarget(event.target)) {
+    return;
+  }
+
   const key = event.key.toLowerCase();
 
   if (key === "k") {
@@ -225,3 +383,4 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderTime();
+refreshLeaderboard();

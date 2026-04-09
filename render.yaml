@@ -3,6 +3,13 @@ services:
     name: de3sidste
     env: python
     plan: free
+    disk:
+      name: leaderboard-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: LEADERBOARD_FILE_PATH
+        value: /var/data/leaderboard.json
     buildCommand: pip install -r requirements.txt
     startCommand: bash -lc 'gunicorn --bind 0.0.0.0:${PORT} app:app'
     autoDeploy: true

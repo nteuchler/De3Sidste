@@ -36,6 +36,20 @@
         <h2>Score</h2>
         <div id="scoreSummary" class="score-summary-card">Tryk Start for at begynde.</div>
         <pre id="scoreDetails"></pre>
+
+        <div id="leaderboardEntry" class="leaderboard-entry" hidden>
+          <label for="playerNameInput">Skriv dit navn til leaderboard</label>
+          <div class="row leaderboard-entry-row">
+            <input id="playerNameInput" type="text" maxlength="24" placeholder="Dit navn" autocomplete="name" />
+            <button id="saveScoreBtn" type="button">Gem score</button>
+          </div>
+          <p id="leaderboardMessage" class="leaderboard-message"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Leaderboard</h2>
+        <ol id="leaderboardList" class="leaderboard-list"></ol>
       </section>
     </main>
 

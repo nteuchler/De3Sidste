@@ -1,11 +1,22 @@
 from pathlib import Path
+import json
 import os
+from threading import Lock
+import time
 from flask import Flask, render_template, send_from_directory, jsonify, request
 
 app = Flask(__name__)
 
 AUDIO_FILENAME = "I Want To Hold Your Hand.mp3"
 PLAY_DURATION_SECONDS = 40
+MAX_LEADERBOARD_ENTRIES = 10
+
+_leaderboard_lock = Lock()
+_leaderboard_file_env = os.environ.get("LEADERBOARD_FILE_PATH", "")
+if _leaderboard_file_env:
+    LEADERBOARD_FILE_PATH = Path(_leaderboard_file_env)
+else:
+    LEADERBOARD_FILE_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
 # Backend timing configuration.
 CLAP_KEY_BINDINGS = {
@@ -114,6 +125,64 @@ def rank_from_accuracy(accuracy: float) -> str:
     return "Niels (Guden)"
 
 
+def _safe_number(value, default=0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def load_leaderboard_entries() -> list[dict]:
+    if not LEADERBOARD_FILE_PATH.exists():
+        return []
+
+    try:
+        raw_data = LEADERBOARD_FILE_PATH.read_text(encoding="utf-8")
+        parsed = json.loads(raw_data)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    entries = []
+    for row in parsed:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name", "")).strip()[:24]
+        if not name:
+            continue
+        entries.append(
+            {
+                "name": name,
+                "finalScore": int(_safe_number(row.get("finalScore"), 0)),
+                "accuracyScore": round(_safe_number(row.get("accuracyScore"), 0.0), 1),
+                "rank": str(row.get("rank", "Ukendt")),
+                "matchedCount": int(_safe_number(row.get("matchedCount"), 0)),
+                "expectedCount": int(_safe_number(row.get("expectedCount"), 0)),
+                "playedAt": int(_safe_number(row.get("playedAt"), 0)),
+            }
+        )
+    return entries
+
+
+def sort_and_trim_leaderboard(entries: list[dict]) -> list[dict]:
+    entries.sort(
+        key=lambda e: (
+            int(e.get("finalScore", 0)),
+            float(e.get("accuracyScore", 0.0)),
+            int(e.get("playedAt", 0)),
+        ),
+        reverse=True,
+    )
+    return entries[:MAX_LEADERBOARD_ENTRIES]
+
+
+def save_leaderboard_entries(entries: list[dict]) -> None:
+    LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LEADERBOARD_FILE_PATH.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 @app.get("/")
 def index():
     audio_exists = (Path(app.root_path) / AUDIO_FILENAME).exists()
@@ -150,6 +219,40 @@ def config():
             "ignoreWindowsSeconds": IGNORE_WINDOWS_SECONDS,
         }
     )
+
+
+@app.get("/leaderboard")
+def leaderboard_get():
+    with _leaderboard_lock:
+        entries = sort_and_trim_leaderboard(load_leaderboard_entries())
+    return jsonify({"entries": entries})
+
+
+@app.post("/leaderboard")
+def leaderboard_post():
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()[:24]
+
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+
+    entry = {
+        "name": name,
+        "finalScore": int(_safe_number(payload.get("finalScore"), 0)),
+        "accuracyScore": round(_safe_number(payload.get("accuracyScore"), 0.0), 1),
+        "rank": str(payload.get("rank", "Ukendt")),
+        "matchedCount": int(_safe_number(payload.get("matchedCount"), 0)),
+        "expectedCount": int(_safe_number(payload.get("expectedCount"), 0)),
+        "playedAt": int(time.time() * 1000),
+    }
+
+    with _leaderboard_lock:
+        entries = load_leaderboard_entries()
+        entries.append(entry)
+        entries = sort_and_trim_leaderboard(entries)
+        save_leaderboard_entries(entries)
+
+    return jsonify({"saved": entry, "entries": entries})
 
 
 @app.post("/score")
