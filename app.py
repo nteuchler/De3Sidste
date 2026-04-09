@@ -152,14 +152,27 @@ def load_leaderboard_entries() -> list[dict]:
         name = str(row.get("name", "")).strip()[:24]
         if not name:
             continue
+        matched_count = int(_safe_number(row.get("matchedCount"), 0))
+        expected_count = int(_safe_number(row.get("expectedCount"), 0))
+        extra_count = int(_safe_number(row.get("extraCount"), 0))
+        timing_score = round(_safe_number(row.get("timingScore"), 0.0), 1)
+        average_beat_error = round(_safe_number(row.get("averageBeatError"), MATCH_TOLERANCE_BEATS), 3)
+        missed_count = max(0, expected_count - matched_count)
+        total_mistakes = missed_count + max(0, extra_count)
+
         entries.append(
             {
                 "name": name,
                 "finalScore": int(_safe_number(row.get("finalScore"), 0)),
                 "accuracyScore": round(_safe_number(row.get("accuracyScore"), 0.0), 1),
+                "timingScore": timing_score,
+                "averageBeatError": average_beat_error,
                 "rank": str(row.get("rank", "Ukendt")),
-                "matchedCount": int(_safe_number(row.get("matchedCount"), 0)),
-                "expectedCount": int(_safe_number(row.get("expectedCount"), 0)),
+                "matchedCount": matched_count,
+                "expectedCount": expected_count,
+                "extraCount": extra_count,
+                "missedCount": missed_count,
+                "totalMistakes": total_mistakes,
                 "playedAt": int(_safe_number(row.get("playedAt"), 0)),
             }
         )
@@ -170,7 +183,10 @@ def sort_and_trim_leaderboard(entries: list[dict]) -> list[dict]:
     entries.sort(
         key=lambda e: (
             int(e.get("finalScore", 0)),
+            float(e.get("timingScore", 0.0)),
             float(e.get("accuracyScore", 0.0)),
+            -int(e.get("totalMistakes", 999999)),
+            -float(e.get("averageBeatError", MATCH_TOLERANCE_BEATS)),
             int(e.get("playedAt", 0)),
         ),
         reverse=True,
@@ -236,13 +252,24 @@ def leaderboard_post():
     if not name:
         return jsonify({"error": "Name is required"}), 400
 
+    matched_count = int(_safe_number(payload.get("matchedCount"), 0))
+    expected_count = int(_safe_number(payload.get("expectedCount"), 0))
+    extra_count = int(_safe_number(payload.get("extraCount"), 0))
+    missed_count = max(0, expected_count - matched_count)
+    total_mistakes = missed_count + max(0, extra_count)
+
     entry = {
         "name": name,
         "finalScore": int(_safe_number(payload.get("finalScore"), 0)),
         "accuracyScore": round(_safe_number(payload.get("accuracyScore"), 0.0), 1),
+        "timingScore": round(_safe_number(payload.get("timingScore"), 0.0), 1),
+        "averageBeatError": round(_safe_number(payload.get("averageBeatError"), MATCH_TOLERANCE_BEATS), 3),
         "rank": str(payload.get("rank", "Ukendt")),
-        "matchedCount": int(_safe_number(payload.get("matchedCount"), 0)),
-        "expectedCount": int(_safe_number(payload.get("expectedCount"), 0)),
+        "matchedCount": matched_count,
+        "expectedCount": expected_count,
+        "extraCount": extra_count,
+        "missedCount": missed_count,
+        "totalMistakes": total_mistakes,
         "playedAt": int(time.time() * 1000),
     }
 

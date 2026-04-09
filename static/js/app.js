@@ -87,7 +87,7 @@ function renderLeaderboard(entries = leaderboardEntries) {
         <span>${entry.finalScore} pts</span>
       </div>
       <div class="leaderboard-meta">
-        ${entry.rank} | Noejagtighed ${entry.accuracyScore.toFixed(1)}% | Ramt ${entry.matchedCount}/${entry.expectedCount} | ${formatPlayedAt(entry.playedAt)}
+        ${entry.rank} | Accuracy ${Number(entry.accuracyScore || 0).toFixed(1)}% | Timing ${Number(entry.timingScore || 0).toFixed(1)}% | Mistakes ${Number(entry.totalMistakes || 0)} (missed ${Number(entry.missedCount || 0)}, extra ${Number(entry.extraCount || 0)}) | Beat error ${Number(entry.averageBeatError || 0).toFixed(3)} | ${formatPlayedAt(entry.playedAt)}
       </div>
     `;
     leaderboardList.appendChild(li);
@@ -147,9 +147,12 @@ async function submitScoreToLeaderboard() {
         name: safeName,
         finalScore: Number(lastScoreResult.finalScore || 0),
         accuracyScore: Number(lastScoreResult.accuracyScore || 0),
+        timingScore: Number(lastScoreResult.timingScore || 0),
+        averageBeatError: Number(lastScoreResult.averageBeatError || 0),
         rank: String(lastScoreResult.rank || "Ukendt"),
         matchedCount: Number(lastScoreResult.matchedCount || 0),
         expectedCount: Number(lastScoreResult.expectedCount || 0),
+        extraCount: Number(lastScoreResult.extraCount || 0),
       }),
     });
 
