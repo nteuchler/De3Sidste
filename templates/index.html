@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="da">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,12 +8,12 @@
   </head>
   <body>
     <main class="app">
-      <h1>Lær at klappe dræn!</h1>
+      <h1>Lær at klappe dit dræn!</h1>
       <p class="subtitle">Nu kan du endelig se om du er problemet til de tre sidste</p>
 
       {% if not audio_exists %}
       <div class="warning">
-        Audio file not found: <strong>{{ audio_filename }}</strong> in app folder.
+        Lydfilen blev ikke fundet: <strong>{{ audio_filename }}</strong> i app-mappen.
       </div>
       {% endif %}
 
@@ -25,16 +25,16 @@
         </div>
 
         <div class="row clap-buttons">
-          <button id="lowBtn" class="low" disabled>Clap Low</button>
-          <button id="highBtn" class="high" disabled>Clap High</button>
+          <button id="lowBtn" class="low" disabled>Lavt klap</button>
+          <button id="highBtn" class="high" disabled>Højt klap</button>
         </div>
         <p class="key-hint">Tip: Du kan også klappe med tastaturet. Tryk <kbd>K</kbd> for lavt klap og <kbd>L</kbd> for højt klap.</p>
-        <div id="liveFeedback" class="live-feedback">Waiting to start...</div>
+        <div id="liveFeedback" class="live-feedback">Venter på start...</div>
       </section>
 
       <section class="panel">
         <h2>Score</h2>
-        <div id="scoreSummary" class="score-summary-card">Press Start to begin.</div>
+        <div id="scoreSummary" class="score-summary-card">Tryk Start for at begynde.</div>
         <pre id="scoreDetails"></pre>
       </section>
     </main>

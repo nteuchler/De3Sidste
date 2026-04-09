@@ -18,14 +18,14 @@ const rankClassByName = {
 function renderScoreCard(result) {
   const tierClass = rankClassByName[result.rank] || "tier-medarbejder";
   const displayScore = Number(result.accuracyScore || 0);
-  const headline = displayScore >= 90 ? "SEJR!" : "RUN COMPLETE";
+  const headline = displayScore >= 90 ? "SEJR!" : "RUN FÆRDIG";
 
   scoreSummary.className = `score-summary-card is-win ${tierClass}`;
   scoreSummary.innerHTML = `
     <div class="win-tag">${headline}</div>
     <div class="win-score">${displayScore.toFixed(1)}<span>/100</span></div>
     <div class="win-rank">${result.rank}</div>
-    <div class="win-stats">Matched ${result.matchedCount}/${result.expectedCount} | Extra ${result.extraCount}</div>
+    <div class="win-stats">Ramt ${result.matchedCount}/${result.expectedCount} | Ekstra ${result.extraCount}</div>
   `;
 }
 
@@ -67,12 +67,12 @@ function pulseButton(button) {
 function flashFeedback(type, time) {
   liveFeedback.classList.remove("low", "high");
   liveFeedback.classList.add(type);
-  liveFeedback.textContent = `${type.toUpperCase()} clap registered at ${time.toFixed(2)}s`;
+  liveFeedback.textContent = `${type.toUpperCase()} klap registreret ved ${time.toFixed(2)}s`;
 
   clearTimeout(feedbackTimer);
   feedbackTimer = setTimeout(() => {
     liveFeedback.classList.remove("low", "high");
-    liveFeedback.textContent = "Listening...";
+    liveFeedback.textContent = "Lytter...";
   }, 250);
 }
 
@@ -118,10 +118,10 @@ function scheduleFadeOut() {
 function startRun() {
   clapEvents = [];
   scoreSummary.className = "score-summary-card";
-  scoreSummary.textContent = "Running... Clap with the buttons!";
+  scoreSummary.textContent = "Spiller... Klap med knapperne!";
   scoreDetails.textContent = "";
   liveFeedback.classList.remove("low", "high");
-  liveFeedback.textContent = "Listening...";
+  liveFeedback.textContent = "Lytter...";
 
   runStartPerf = performance.now();
   audio.currentTime = 0;
@@ -136,10 +136,10 @@ function startRun() {
       scheduleFadeOut();
     })
     .catch((error) => {
-      scoreSummary.textContent = "Could not start audio playback. Click Start again.";
+      scoreSummary.textContent = "Kunne ikke starte afspilning. Tryk Start igen.";
       scoreDetails.textContent = String(error);
       liveFeedback.classList.remove("low", "high");
-      liveFeedback.textContent = "Playback failed.";
+      liveFeedback.textContent = "Afspilning fejlede.";
     });
 }
 
@@ -153,7 +153,7 @@ function registerClap(type) {
 
 async function scoreRun() {
   liveFeedback.classList.remove("low", "high");
-  liveFeedback.textContent = "Scoring...";
+  liveFeedback.textContent = "Beregner score...";
   try {
     const response = await fetch("/score", {
       method: "POST",
@@ -162,7 +162,7 @@ async function scoreRun() {
     });
 
     if (!response.ok) {
-      throw new Error(`Scoring failed with status ${response.status}`);
+      throw new Error(`Score fejlede med status ${response.status}`);
     }
 
     const result = await response.json();
@@ -171,39 +171,39 @@ async function scoreRun() {
     const perPositionLines = (result.perPosition || []).map((p) => {
       const avgAbs = p.averageAbsErrorMs == null ? "-" : `${p.averageAbsErrorMs}ms`;
       const avgSigned = p.averageSignedErrorMs == null ? "-" : `${p.averageSignedErrorMs}ms`;
-      return `${p.positionLabel} clap: ${p.hitCount}/${p.expectedCount} (${p.hitRate}%) | avg err ${avgAbs} | bias ${avgSigned} | ${p.trend}`;
+      return `${p.positionLabel} klap: ${p.hitCount}/${p.expectedCount} (${p.hitRate}%) | gennemsnitlig fejl ${avgAbs} | bias ${avgSigned} | ${p.trend}`;
     });
 
     const lines = [
       `BPM: ${result.bpm}`,
-      `Rank: ${result.rank}`,
-      `Accuracy: ${result.accuracyScore}%`,
+      `Rang: ${result.rank}`,
+      `Nøjagtighed: ${result.accuracyScore}%`,
       `Timing: ${result.timingScore}%`,
-      `Ignored window: ${(result.ignoredWindowSeconds || []).map((w) => `${w[0]}s-${w[1]}s`).join(", ") || "none"}`,
+      `Ignoreret vindue: ${(result.ignoredWindowSeconds || []).map((w) => `${w[0]}s-${w[1]}s`).join(", ") || "ingen"}`,
       "",
-      "Feedback per clap in each 3-clap phrase:",
+      "Feedback pr. klap i hver 3-klaps frase:",
       ...perPositionLines,
       "",
-      "Sample of expected vs matched:",
+      "Eksempel på forventede vs. ramte:",
       ...result.matches.slice(0, 18).map((m, idx) => {
         const expected = `${idx + 1}. [${m.expected.positionLabel}] ${m.expected.type.toUpperCase()} @ ${m.expected.time.toFixed(2)}s`;
-        if (!m.matched) return `${expected} -> MISS`;
+        if (!m.matched) return `${expected} -> FORBI`;
         const signedMs = m.signed_error_seconds * 1000;
-        const trend = signedMs < -20 ? "EARLY" : signedMs > 20 ? "LATE" : "ON";
-        return `${expected} -> HIT @ ${m.actual.time.toFixed(2)}s (${trend}, ${signedMs.toFixed(1)}ms, beat err ${m.beat_error.toFixed(3)})`;
+        const trend = signedMs < -20 ? "TIDLIG" : signedMs > 20 ? "SEN" : "I TAKT";
+        return `${expected} -> RAMT @ ${m.actual.time.toFixed(2)}s (${trend}, ${signedMs.toFixed(1)}ms, beat-fejl ${m.beat_error.toFixed(3)})`;
       }),
       "",
-      "All claps:",
+      "Alle klap:",
       ...clapEvents.map((e, idx) => `${idx + 1}. ${e.type.toUpperCase()} @ ${e.time.toFixed(2)}s`),
     ];
 
     scoreDetails.textContent = lines.join("\n");
-    liveFeedback.textContent = "Run complete.";
+    liveFeedback.textContent = "Runde afsluttet.";
   } catch (error) {
     scoreSummary.className = "score-summary-card";
-    scoreSummary.textContent = "Could not score this run.";
+    scoreSummary.textContent = "Kunne ikke beregne denne runde.";
     scoreDetails.textContent = String(error);
-    liveFeedback.textContent = "Scoring failed.";
+    liveFeedback.textContent = "Score fejlede.";
   }
 }
 

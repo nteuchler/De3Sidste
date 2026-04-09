@@ -98,8 +98,8 @@ def in_ignored_window(seconds: float) -> bool:
 
 
 def clap_position_label(position: int) -> str:
-    labels = {1: "1st", 2: "2nd", 3: "3rd"}
-    return labels.get(position, f"{position}th")
+    labels = {1: "1.", 2: "2.", 3: "3."}
+    return labels.get(position, f"{position}.")
 
 
 def rank_from_accuracy(accuracy: float) -> str:
@@ -273,13 +273,13 @@ def score():
         hit_rate = (pos_hit_count / pos_expected) if pos_expected > 0 else 0.0
 
         if pos_hit_count == 0:
-            trend = "no data"
+            trend = "ingen data"
         elif pos_avg_signed_ms <= -CONSISTENT_BIAS_MS:
-            trend = "consistently early"
+            trend = "konsekvent tidlig"
         elif pos_avg_signed_ms >= CONSISTENT_BIAS_MS:
-            trend = "consistently late"
+            trend = "konsekvent sen"
         else:
-            trend = "on time"
+            trend = "i takt"
 
         per_position[pos] = {
             "position": pos,
