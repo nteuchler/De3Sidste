@@ -2,7 +2,7 @@ services:
   - type: web
     name: de3sidste
     env: python
-    plan: free
+    plan: starter
     disk:
       name: leaderboard-data
       mountPath: /var/data

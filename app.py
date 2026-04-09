@@ -15,6 +15,9 @@ _leaderboard_lock = Lock()
 _leaderboard_file_env = os.environ.get("LEADERBOARD_FILE_PATH", "")
 if _leaderboard_file_env:
     LEADERBOARD_FILE_PATH = Path(_leaderboard_file_env)
+elif Path("/var/data").exists():
+    # Render persistent disk mount (when configured).
+    LEADERBOARD_FILE_PATH = Path("/var/data") / "leaderboard.json"
 else:
     LEADERBOARD_FILE_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
