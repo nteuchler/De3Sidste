@@ -5,7 +5,7 @@ from threading import Lock
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from flask import Flask, render_template, send_from_directory, send_file, jsonify, request
+from flask import Flask, render_template, send_from_directory, jsonify, request
 
 app = Flask(__name__)
 
@@ -30,6 +30,26 @@ LEADERBOARD_MIRROR_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
 def gist_storage_enabled() -> bool:
     return bool(GITHUB_GIST_ID and GITHUB_GIST_TOKEN)
+
+
+def select_writable_leaderboard_path() -> Path:
+    global LEADERBOARD_FILE_PATH
+
+    candidates = [LEADERBOARD_FILE_PATH]
+    if LEADERBOARD_MIRROR_PATH not in candidates:
+        candidates.append(LEADERBOARD_MIRROR_PATH)
+
+    for candidate in candidates:
+        try:
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            LEADERBOARD_FILE_PATH = candidate
+            return candidate
+        except OSError:
+            continue
+
+    # Last resort keeps app from crashing; writes may still fail later.
+    LEADERBOARD_FILE_PATH = LEADERBOARD_MIRROR_PATH
+    return LEADERBOARD_FILE_PATH
 
 
 def load_gist_leaderboard_entries() -> list[dict] | None:
@@ -261,14 +281,16 @@ def load_leaderboard_entries() -> list[dict]:
     if gist_entries is not None:
         return gist_entries
 
-    if not LEADERBOARD_FILE_PATH.exists():
+    storage_path = select_writable_leaderboard_path()
+
+    if not storage_path.exists():
         return []
 
     try:
-        raw_data = LEADERBOARD_FILE_PATH.read_text(encoding="utf-8")
+        raw_data = storage_path.read_text(encoding="utf-8")
         parsed = json.loads(raw_data)
     except (OSError, json.JSONDecodeError):
-        backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
+        backup_path = storage_path.with_suffix(f"{storage_path.suffix}.bak")
         if not backup_path.exists():
             return []
         try:
@@ -303,29 +325,30 @@ def save_leaderboard_entries(entries: list[dict]) -> None:
         LEADERBOARD_MIRROR_PATH.write_text(payload, encoding="utf-8")
         return
 
-    LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    storage_path = select_writable_leaderboard_path()
 
     # Write atomically to reduce risk of partial/corrupt JSON on abrupt restarts.
     payload = json.dumps(entries, ensure_ascii=False, indent=2)
-    temp_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.tmp")
+    temp_path = storage_path.with_suffix(f"{storage_path.suffix}.tmp")
     with open(temp_path, "w", encoding="utf-8") as f:
         f.write(payload)
         f.flush()
         os.fsync(f.fileno())
-    temp_path.replace(LEADERBOARD_FILE_PATH)
+    temp_path.replace(storage_path)
 
     # Refresh backup after a successful primary write.
-    backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
+    backup_path = storage_path.with_suffix(f"{storage_path.suffix}.bak")
     backup_path.write_text(payload, encoding="utf-8")
 
     # Mirror to project data path so local/dev copy stays in sync.
-    if LEADERBOARD_MIRROR_PATH != LEADERBOARD_FILE_PATH:
+    if LEADERBOARD_MIRROR_PATH != storage_path:
         LEADERBOARD_MIRROR_PATH.parent.mkdir(parents=True, exist_ok=True)
         LEADERBOARD_MIRROR_PATH.write_text(payload, encoding="utf-8")
 
 
 def leaderboard_storage_status() -> dict:
     configured_path = LEADERBOARD_FILE_PATH
+    effective_path = LEADERBOARD_MIRROR_PATH if gist_storage_enabled() else select_writable_leaderboard_path()
     resolved_path = configured_path.resolve()
     is_var_data_target = str(configured_path).startswith("/var/data")
     var_data_exists = Path("/var/data").exists()
@@ -334,6 +357,7 @@ def leaderboard_storage_status() -> dict:
     return {
         "storageBackend": "github-gist" if gist_storage_enabled() else "filesystem",
         "leaderboardFilePath": str(configured_path),
+        "effectiveLeaderboardFilePath": str(effective_path),
         "resolvedLeaderboardFilePath": str(resolved_path),
         "leaderboardFileExists": configured_path.exists(),
         "leaderboardFileEnv": _leaderboard_file_env or None,
@@ -347,9 +371,18 @@ def leaderboard_storage_status() -> dict:
 
 
 def ensure_leaderboard_storage() -> None:
+    if gist_storage_enabled():
+        # Keep mirror available for admin download and visibility.
+        LEADERBOARD_MIRROR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not LEADERBOARD_MIRROR_PATH.exists():
+            LEADERBOARD_MIRROR_PATH.write_text("[]", encoding="utf-8")
+        status = leaderboard_storage_status()
+        app.logger.info("Leaderboard storage status: %s", status)
+        return
+
     with _leaderboard_lock:
-        LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        if not LEADERBOARD_FILE_PATH.exists():
+        storage_path = select_writable_leaderboard_path()
+        if not storage_path.exists():
             save_leaderboard_entries([])
 
     status = leaderboard_storage_status()
@@ -438,13 +471,13 @@ def admin_leaderboard_raw_put():
 
 @app.get("/admin/leaderboard/download")
 def admin_leaderboard_download():
-    ensure_leaderboard_storage()
-    return send_file(
-        LEADERBOARD_FILE_PATH,
+    with _leaderboard_lock:
+        entries = load_leaderboard_entries()
+    payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    return app.response_class(
+        payload,
         mimetype="application/json",
-        as_attachment=True,
-        download_name="leaderboard.json",
-        conditional=True,
+        headers={"Content-Disposition": "attachment; filename=leaderboard.json"},
     )
 
 
