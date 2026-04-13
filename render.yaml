@@ -11,11 +11,7 @@ services:
   startCommand: bash -lc 'gunicorn --bind 0.0.0.0:${PORT} app:app'
   autoDeployTrigger: commit
   env: python
-  disk:
-    name: leaderboard-data
-    mountPath: /var/data
-    sizeGB: 1
+
   envVars:
     - key: LEADERBOARD_FILE_PATH
       value: /var/data/leaderboard.json
-  autoDeploy: true
