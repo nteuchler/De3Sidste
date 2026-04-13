@@ -3,6 +3,8 @@ import json
 import os
 from threading import Lock
 import time
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 from flask import Flask, render_template, send_from_directory, send_file, jsonify, request
 
 app = Flask(__name__)
@@ -18,8 +20,89 @@ if _leaderboard_file_env:
 else:
     LEADERBOARD_FILE_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
+GITHUB_GIST_ID = os.environ.get("GITHUB_GIST_ID", "").strip()
+GITHUB_GIST_TOKEN = os.environ.get("GITHUB_GIST_TOKEN", "").strip()
+GITHUB_GIST_FILENAME = os.environ.get("GITHUB_GIST_FILENAME", "leaderboard.json").strip() or "leaderboard.json"
+
 # Keep a workspace copy in sync for local visibility and backup purposes.
 LEADERBOARD_MIRROR_PATH = Path(app.root_path) / "data" / "leaderboard.json"
+
+
+def gist_storage_enabled() -> bool:
+    return bool(GITHUB_GIST_ID and GITHUB_GIST_TOKEN)
+
+
+def load_gist_leaderboard_entries() -> list[dict] | None:
+    if not gist_storage_enabled():
+        return None
+
+    url = f"https://api.github.com/gists/{GITHUB_GIST_ID}"
+    req = Request(
+        url,
+        method="GET",
+        headers={
+            "Authorization": f"Bearer {GITHUB_GIST_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "de3sidste-leaderboard",
+        },
+    )
+    try:
+        with urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+        return None
+
+    files = payload.get("files") if isinstance(payload, dict) else None
+    if not isinstance(files, dict):
+        return []
+    file_data = files.get(GITHUB_GIST_FILENAME)
+    if not isinstance(file_data, dict):
+        return []
+
+    content = file_data.get("content", "[]")
+    if not isinstance(content, str):
+        return []
+
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return []
+
+    return normalize_leaderboard_entries(parsed)
+
+
+def save_gist_leaderboard_entries(entries: list[dict]) -> bool:
+    if not gist_storage_enabled():
+        return False
+
+    payload = json.dumps(entries, ensure_ascii=False, indent=2)
+    url = f"https://api.github.com/gists/{GITHUB_GIST_ID}"
+    body = json.dumps(
+        {
+            "files": {
+                GITHUB_GIST_FILENAME: {
+                    "content": payload,
+                }
+            }
+        }
+    ).encode("utf-8")
+    req = Request(
+        url,
+        data=body,
+        method="PATCH",
+        headers={
+            "Authorization": f"Bearer {GITHUB_GIST_TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "User-Agent": "de3sidste-leaderboard",
+        },
+    )
+    try:
+        with urlopen(req, timeout=12):
+            pass
+    except (HTTPError, URLError, TimeoutError, OSError):
+        return False
+    return True
 
 # Backend timing configuration.
 CLAP_KEY_BINDINGS = {
@@ -174,6 +257,10 @@ def normalize_leaderboard_entries(parsed) -> list[dict]:
 
 
 def load_leaderboard_entries() -> list[dict]:
+    gist_entries = load_gist_leaderboard_entries()
+    if gist_entries is not None:
+        return gist_entries
+
     if not LEADERBOARD_FILE_PATH.exists():
         return []
 
@@ -209,6 +296,13 @@ def sort_and_trim_leaderboard(entries: list[dict]) -> list[dict]:
 
 
 def save_leaderboard_entries(entries: list[dict]) -> None:
+    if gist_storage_enabled() and save_gist_leaderboard_entries(entries):
+        # Keep local mirror file updated for admin download and debugging.
+        payload = json.dumps(entries, ensure_ascii=False, indent=2)
+        LEADERBOARD_MIRROR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LEADERBOARD_MIRROR_PATH.write_text(payload, encoding="utf-8")
+        return
+
     LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     # Write atomically to reduce risk of partial/corrupt JSON on abrupt restarts.
@@ -238,6 +332,7 @@ def leaderboard_storage_status() -> dict:
     var_data_is_mount = os.path.ismount("/var/data") if var_data_exists else False
 
     return {
+        "storageBackend": "github-gist" if gist_storage_enabled() else "filesystem",
         "leaderboardFilePath": str(configured_path),
         "resolvedLeaderboardFilePath": str(resolved_path),
         "leaderboardFileExists": configured_path.exists(),
@@ -245,6 +340,9 @@ def leaderboard_storage_status() -> dict:
         "isVarDataTarget": is_var_data_target,
         "varDataExists": var_data_exists,
         "varDataIsMount": var_data_is_mount,
+        "githubGistEnabled": gist_storage_enabled(),
+        "githubGistId": GITHUB_GIST_ID or None,
+        "githubGistFilename": GITHUB_GIST_FILENAME,
     }
 
 

@@ -15,3 +15,9 @@ services:
   envVars:
     - key: LEADERBOARD_FILE_PATH
       value: /var/data/leaderboard.json
+    - key: GITHUB_GIST_ID
+      sync: false
+    - key: GITHUB_GIST_TOKEN
+      sync: false
+    - key: GITHUB_GIST_FILENAME
+      value: leaderboard.json
