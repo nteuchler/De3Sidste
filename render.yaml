@@ -1,15 +1,22 @@
+# Exported from Render on 2026-04-13T08:37:19Z
+version: "1"
 services:
-  - type: web
-    name: de3sidste
-    env: python
-    plan: starter
-    disk:
-      name: leaderboard-data
-      mountPath: /var/data
-      sizeGB: 1
-    envVars:
-      - key: LEADERBOARD_FILE_PATH
-        value: /var/data/leaderboard.json
-    buildCommand: pip install -r requirements.txt
-    startCommand: bash -lc 'gunicorn --bind 0.0.0.0:${PORT} app:app'
-    autoDeploy: true
+- type: web
+  name: klapditdræn
+  runtime: python
+  repo: https://github.com/nteuchler/De3Sidste
+  plan: free
+  region: frankfurt
+  buildCommand: pip install -r requirements.txt
+  startCommand: bash -lc 'gunicorn --bind 0.0.0.0:${PORT} app:app'
+  autoDeployTrigger: commit
+  env: python
+  plan: starter
+  disk:
+    name: leaderboard-data
+    mountPath: /var/data
+    sizeGB: 1
+  envVars:
+    - key: LEADERBOARD_FILE_PATH
+      value: /var/data/leaderboard.json
+  autoDeploy: true

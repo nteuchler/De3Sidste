@@ -3,7 +3,7 @@ import json
 import os
 from threading import Lock
 import time
-from flask import Flask, render_template, send_from_directory, jsonify, request
+from flask import Flask, render_template, send_from_directory, send_file, jsonify, request
 
 app = Flask(__name__)
 
@@ -15,9 +15,6 @@ _leaderboard_lock = Lock()
 _leaderboard_file_env = os.environ.get("LEADERBOARD_FILE_PATH", "")
 if _leaderboard_file_env:
     LEADERBOARD_FILE_PATH = Path(_leaderboard_file_env)
-elif Path("/var/data").exists():
-    # Render persistent disk mount (when configured).
-    LEADERBOARD_FILE_PATH = Path("/var/data") / "leaderboard.json"
 else:
     LEADERBOARD_FILE_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
@@ -138,23 +135,7 @@ def _safe_number(value, default=0.0) -> float:
         return float(default)
 
 
-def load_leaderboard_entries() -> list[dict]:
-    if not LEADERBOARD_FILE_PATH.exists():
-        return []
-
-    try:
-        raw_data = LEADERBOARD_FILE_PATH.read_text(encoding="utf-8")
-        parsed = json.loads(raw_data)
-    except (OSError, json.JSONDecodeError):
-        backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
-        if not backup_path.exists():
-            return []
-        try:
-            raw_data = backup_path.read_text(encoding="utf-8")
-            parsed = json.loads(raw_data)
-        except (OSError, json.JSONDecodeError):
-            return []
-
+def normalize_leaderboard_entries(parsed) -> list[dict]:
     if not isinstance(parsed, list):
         return []
 
@@ -190,6 +171,26 @@ def load_leaderboard_entries() -> list[dict]:
             }
         )
     return entries
+
+
+def load_leaderboard_entries() -> list[dict]:
+    if not LEADERBOARD_FILE_PATH.exists():
+        return []
+
+    try:
+        raw_data = LEADERBOARD_FILE_PATH.read_text(encoding="utf-8")
+        parsed = json.loads(raw_data)
+    except (OSError, json.JSONDecodeError):
+        backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
+        if not backup_path.exists():
+            return []
+        try:
+            raw_data = backup_path.read_text(encoding="utf-8")
+            parsed = json.loads(raw_data)
+        except (OSError, json.JSONDecodeError):
+            return []
+
+    return normalize_leaderboard_entries(parsed)
 
 
 def sort_and_trim_leaderboard(entries: list[dict]) -> list[dict]:
@@ -229,11 +230,37 @@ def save_leaderboard_entries(entries: list[dict]) -> None:
         LEADERBOARD_MIRROR_PATH.write_text(payload, encoding="utf-8")
 
 
+def leaderboard_storage_status() -> dict:
+    configured_path = LEADERBOARD_FILE_PATH
+    resolved_path = configured_path.resolve()
+    is_var_data_target = str(configured_path).startswith("/var/data")
+    var_data_exists = Path("/var/data").exists()
+    var_data_is_mount = os.path.ismount("/var/data") if var_data_exists else False
+
+    return {
+        "leaderboardFilePath": str(configured_path),
+        "resolvedLeaderboardFilePath": str(resolved_path),
+        "leaderboardFileExists": configured_path.exists(),
+        "leaderboardFileEnv": _leaderboard_file_env or None,
+        "isVarDataTarget": is_var_data_target,
+        "varDataExists": var_data_exists,
+        "varDataIsMount": var_data_is_mount,
+    }
+
+
 def ensure_leaderboard_storage() -> None:
     with _leaderboard_lock:
         LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
         if not LEADERBOARD_FILE_PATH.exists():
             save_leaderboard_entries([])
+
+    status = leaderboard_storage_status()
+    app.logger.info("Leaderboard storage status: %s", status)
+
+
+@app.get("/leaderboard/storage-status")
+def leaderboard_storage_status_get():
+    return jsonify(leaderboard_storage_status())
 
 
 @app.get("/")
@@ -249,6 +276,11 @@ def index():
         expected_count=active_expected_count,
         key_bindings=CLAP_KEY_BINDINGS,
     )
+
+
+@app.get("/admin")
+def admin():
+    return render_template("admin.html")
 
 
 @app.get("/audio")
@@ -279,6 +311,69 @@ def leaderboard_get():
     with _leaderboard_lock:
         entries = sort_and_trim_leaderboard(load_leaderboard_entries())
     return jsonify({"entries": entries})
+
+
+@app.get("/admin/leaderboard/raw")
+def admin_leaderboard_raw_get():
+    with _leaderboard_lock:
+        entries = load_leaderboard_entries()
+    return jsonify({"entries": entries, "storage": leaderboard_storage_status()})
+
+
+@app.put("/admin/leaderboard/raw")
+def admin_leaderboard_raw_put():
+    payload = request.get_json(silent=True)
+
+    if isinstance(payload, list):
+        raw_entries = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("entries"), list):
+        raw_entries = payload.get("entries")
+    else:
+        return jsonify({"error": "JSON body must be an array or an object with 'entries' array."}), 400
+
+    normalized_entries = sort_and_trim_leaderboard(normalize_leaderboard_entries(raw_entries))
+    with _leaderboard_lock:
+        save_leaderboard_entries(normalized_entries)
+
+    return jsonify({"savedCount": len(normalized_entries), "entries": normalized_entries})
+
+
+@app.get("/admin/leaderboard/download")
+def admin_leaderboard_download():
+    ensure_leaderboard_storage()
+    return send_file(
+        LEADERBOARD_FILE_PATH,
+        mimetype="application/json",
+        as_attachment=True,
+        download_name="leaderboard.json",
+        conditional=True,
+    )
+
+
+@app.post("/admin/leaderboard/upload")
+def admin_leaderboard_upload():
+    uploaded_file = request.files.get("file")
+    if uploaded_file is None or uploaded_file.filename == "":
+        return jsonify({"error": "No file uploaded. Use form field named 'file'."}), 400
+
+    try:
+        uploaded_bytes = uploaded_file.read()
+        uploaded_text = uploaded_bytes.decode("utf-8")
+        parsed = json.loads(uploaded_text)
+    except UnicodeDecodeError:
+        return jsonify({"error": "Uploaded file must be UTF-8 encoded JSON."}), 400
+    except json.JSONDecodeError:
+        return jsonify({"error": "Uploaded file is not valid JSON."}), 400
+
+    if not isinstance(parsed, list):
+        return jsonify({"error": "Uploaded JSON must be an array of leaderboard entries."}), 400
+
+    normalized_entries = sort_and_trim_leaderboard(normalize_leaderboard_entries(parsed))
+
+    with _leaderboard_lock:
+        save_leaderboard_entries(normalized_entries)
+
+    return jsonify({"savedCount": len(normalized_entries), "entries": normalized_entries})
 
 
 @app.post("/leaderboard")

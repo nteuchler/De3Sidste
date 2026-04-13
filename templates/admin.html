@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leaderboard Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <style>
+      .admin-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .admin-status,
+      .admin-message {
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9rem;
+      }
+
+      .admin-status {
+        max-height: 220px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 0.75rem;
+      }
+
+      .admin-editor {
+        width: 100%;
+        min-height: 320px;
+        resize: vertical;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.2);
+        color: inherit;
+        padding: 0.75rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      }
+
+      .admin-upload {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .admin-link-row {
+        margin-top: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>Leaderboard Admin</h1>
+      <p class="subtitle">Manage leaderboard JSON directly: refresh, edit, upload, and download.</p>
+
+      <section class="panel">
+        <h2>Storage Status</h2>
+        <div class="admin-actions">
+          <button id="refreshStatusBtn" type="button">Refresh Status</button>
+          <button id="refreshJsonBtn" type="button">Load JSON</button>
+          <a href="/admin/leaderboard/download" id="downloadJsonLink">Download leaderboard.json</a>
+        </div>
+        <pre id="storageStatus" class="admin-status">Loading...</pre>
+      </section>
+
+      <section class="panel">
+        <h2>Edit JSON</h2>
+        <textarea id="jsonEditor" class="admin-editor" spellcheck="false"></textarea>
+        <div class="admin-actions">
+          <button id="saveJsonBtn" type="button">Save JSON</button>
+        </div>
+        <p id="adminMessage" class="admin-message"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Upload New JSON File</h2>
+        <form id="uploadForm" class="admin-upload">
+          <input id="uploadFileInput" name="file" type="file" accept="application/json,.json" />
+          <button id="uploadBtn" type="submit">Upload and Replace</button>
+        </form>
+      </section>
+
+      <p class="admin-link-row"><a href="/">Back to game</a></p>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+  </body>
+</html>
