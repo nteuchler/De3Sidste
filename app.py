@@ -21,6 +21,9 @@ elif Path("/var/data").exists():
 else:
     LEADERBOARD_FILE_PATH = Path(app.root_path) / "data" / "leaderboard.json"
 
+# Keep a workspace copy in sync for local visibility and backup purposes.
+LEADERBOARD_MIRROR_PATH = Path(app.root_path) / "data" / "leaderboard.json"
+
 # Backend timing configuration.
 CLAP_KEY_BINDINGS = {
     "k": "low",
@@ -143,7 +146,14 @@ def load_leaderboard_entries() -> list[dict]:
         raw_data = LEADERBOARD_FILE_PATH.read_text(encoding="utf-8")
         parsed = json.loads(raw_data)
     except (OSError, json.JSONDecodeError):
-        return []
+        backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
+        if not backup_path.exists():
+            return []
+        try:
+            raw_data = backup_path.read_text(encoding="utf-8")
+            parsed = json.loads(raw_data)
+        except (OSError, json.JSONDecodeError):
+            return []
 
     if not isinstance(parsed, list):
         return []
@@ -208,6 +218,22 @@ def save_leaderboard_entries(entries: list[dict]) -> None:
         f.flush()
         os.fsync(f.fileno())
     temp_path.replace(LEADERBOARD_FILE_PATH)
+
+    # Refresh backup after a successful primary write.
+    backup_path = LEADERBOARD_FILE_PATH.with_suffix(f"{LEADERBOARD_FILE_PATH.suffix}.bak")
+    backup_path.write_text(payload, encoding="utf-8")
+
+    # Mirror to project data path so local/dev copy stays in sync.
+    if LEADERBOARD_MIRROR_PATH != LEADERBOARD_FILE_PATH:
+        LEADERBOARD_MIRROR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LEADERBOARD_MIRROR_PATH.write_text(payload, encoding="utf-8")
+
+
+def ensure_leaderboard_storage() -> None:
+    with _leaderboard_lock:
+        LEADERBOARD_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not LEADERBOARD_FILE_PATH.exists():
+            save_leaderboard_entries([])
 
 
 @app.get("/")
@@ -452,4 +478,8 @@ def score():
 
 
 if __name__ == "__main__":
+    ensure_leaderboard_storage()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+
+
+ensure_leaderboard_storage()

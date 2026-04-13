@@ -12,19 +12,5 @@
     "missedCount": 1,
     "totalMistakes": 2,
     "playedAt": 1775757838447
-  },
-  {
-    "name": "test 2",
-    "finalScore": 2,
-    "accuracyScore": 34.2,
-    "timingScore": 57.7,
-    "averageBeatError": 0.317,
-    "rank": "Dræn",
-    "matchedCount": 13,
-    "expectedCount": 38,
-    "extraCount": 27,
-    "missedCount": 25,
-    "totalMistakes": 52,
-    "playedAt": 1776064888806
   }
 ]
